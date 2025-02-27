@@ -38,6 +38,60 @@ resource "azurerm_linux_virtual_machine" "vm" {
     environment = "dev"
   }
 }
+resource "azurerm_linux_virtual_machine" "vm" {
+  name                  = var.linux_vm_name
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  size                  = var.linux_vm_size
+  admin_username        = var.linux_vm_admin_username
+  admin_password        = var.linux_vm_admin_password
+  disable_password_authentication = var.linux_vm_password_auth_disabled
+  network_interface_ids = var.nic_ids
+
+  # OS Disk Configuration
+  os_disk {
+    name                 = "${var.linux_vm_name}-osdisk"
+    caching              = var.linux_vm_os_disk_cache
+    create_option        = "FromImage"
+    disk_size_gb         = var.linux_vm_os_disk_size
+    storage_account_type = var.linux_vm_os_disk_type
+  }
+
+  # Secure Boot & vTPM
+  secure_boot_enabled = var.linux_vm_os_disk_encryption_type != null ? true : coalesce(var.linux_vm_secure_boot_enabled, false)
+  vtpm_enabled        = var.linux_vm_os_disk_encryption_type != null ? true : coalesce(var.linux_vm_vtpm_enabled, false)
+
+  # Encryption at Host
+  encryption_at_host_enabled = coalesce(var.linux_vm_host_encryption_enabled, false)
+
+  # Custom Data
+  custom_data = try(var.linux_vm_custom_data, null)
+
+  # Dedicated Hosts
+  dedicated_host_id = try(var.linux_vm_dedicated_host_id, null)
+
+  # Additional Capabilities
+  additional_capabilities {
+    ultra_ssd_enabled = coalesce(var.linux_vm_ultra_disks_enabled, false)
+  }
+
+  # Boot Diagnostics
+  boot_diagnostics {
+    storage_account_uri = try(var.linux_vm_boot_diag_uri, null)
+  }
+
+  # Identity Block (Dynamically Created if Identity Type Exists)
+  dynamic "identity" {
+    for_each = var.linux_vm_identity_type != null ? [1] : []
+    content {
+      type         = var.linux_vm_identity_type
+      identity_ids = var.linux_vm_identity_type == "UserAssigned" || var.linux_vm_identity_type == "SystemAssigned, UserAssigned" ? var.linux_vm_identity_ids : null
+    }
+  }
+
+  # Tags - Merge Default & Custom Tags
+  tags = var.linux_vm_custom_tags != null ? merge(var.tags, var.linux_vm_custom_tags) : var.tags
+}
 
 resource "azurerm_virtual_machine_data_disk_attachment" "attach_disk" {
 
